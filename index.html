@@ -7,7 +7,29 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button id="theme-toggle" type="button" class="btn theme-toggle">Purple Theme</button>
+  <button id="skin-picker-toggle" type="button" class="btn skin-picker-toggle" aria-expanded="false" aria-controls="skin-picker">
+    Skins
+  </button>
+
+  <aside id="skin-picker" class="skin-picker" aria-label="Appearance settings" hidden>
+    <div class="skin-picker-header">
+      <h2 class="skin-picker-title">Customize</h2>
+      <button id="skin-picker-close" type="button" class="skin-picker-close" aria-label="Close">×</button>
+    </div>
+
+    <section class="skin-section">
+      <h3 class="skin-section-title">Background</h3>
+      <div id="background-skins" class="skin-grid" role="radiogroup" aria-label="Background theme"></div>
+    </section>
+
+    <section class="skin-section">
+      <h3 class="skin-section-title">Pieces</h3>
+      <div id="piece-skins" class="skin-grid" role="radiogroup" aria-label="Piece style"></div>
+    </section>
+  </aside>
+
+  <div id="skin-picker-backdrop" class="skin-picker-backdrop" hidden></div>
+
   <main class="app">
     <h1>Chess</h1>
     <p id="status" class="status">White to move</p>

@@ -1,8 +1,42 @@
 // Filled glyphs (U+265A–265F) for both sides; white outline glyphs render hollow in most fonts.
-const GLYPHS = {
+const GLYPHS_FILLED = {
   w: { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" },
   b: { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" },
 };
+
+const GLYPHS_OUTLINE = {
+  w: { p: "♙", n: "♘", b: "♗", r: "♖", q: "♕", k: "♔" },
+  b: { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" },
+};
+
+const BACKGROUND_SKINS = [
+  { id: "forest", label: "Forest", light: "#eeeed2", dark: "#769656" },
+  { id: "royal", label: "Royal", light: "#ede0f7", dark: "#7c5cbf" },
+  { id: "ocean", label: "Ocean", light: "#dce8f0", dark: "#4a90b8" },
+  { id: "sunset", label: "Sunset", light: "#f5e6d3", dark: "#c47840" },
+  { id: "midnight", label: "Midnight", light: "#b8c0cc", dark: "#4a5568" },
+  { id: "marble", label: "Marble", light: "#f8f6f2", dark: "#a09890" },
+];
+
+const PIECE_PREVIEW_COLORS = {
+  classic: ["#fff", "#111"],
+  outline: ["#fff", "#111"],
+  gold: ["#ffd54f", "#3e2723"],
+  neon: ["#00f5ff", "#ff2d95"],
+  ivory: ["#fff8e7", "#2c2c2c"],
+  ruby: ["#ff6b6b", "#1a1a2e"],
+  emerald: ["#a8e6cf", "#1b4332"],
+};
+
+const PIECE_SKINS = [
+  { id: "classic", label: "Classic", glyphSet: "filled", previewW: "♚", previewB: "♚" },
+  { id: "outline", label: "Outline", glyphSet: "outline", previewW: "♔", previewB: "♚" },
+  { id: "gold", label: "Gold", glyphSet: "filled", previewW: "♚", previewB: "♚" },
+  { id: "neon", label: "Neon", glyphSet: "filled", previewW: "♚", previewB: "♚" },
+  { id: "ivory", label: "Ivory", glyphSet: "outline", previewW: "♔", previewB: "♚" },
+  { id: "ruby", label: "Ruby", glyphSet: "filled", previewW: "♚", previewB: "♚" },
+  { id: "emerald", label: "Emerald", glyphSet: "outline", previewW: "♔", previewB: "♚" },
+];
 
 // Starting arrangement of the back rank.
 const BACK_RANK = ["r", "n", "b", "q", "k", "b", "n", "r"];
@@ -10,11 +44,23 @@ const BACK_RANK = ["r", "n", "b", "q", "k", "b", "n", "r"];
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const resetEl = document.getElementById("reset");
-const themeToggleEl = document.getElementById("theme-toggle");
+const skinPickerToggleEl = document.getElementById("skin-picker-toggle");
+const skinPickerEl = document.getElementById("skin-picker");
+const skinPickerCloseEl = document.getElementById("skin-picker-close");
+const skinPickerBackdropEl = document.getElementById("skin-picker-backdrop");
+const backgroundSkinsEl = document.getElementById("background-skins");
+const pieceSkinsEl = document.getElementById("piece-skins");
 const moveListEl = document.getElementById("move-list");
-const THEME_KEY = "chess-theme";
+
+const BG_SKIN_KEY = "chess-bg-skin";
+const PIECE_SKIN_KEY = "chess-piece-skin";
+const LEGACY_THEME_KEY = "chess-theme";
 
 const PIECE_NAMES = { k: "K", q: "Q", r: "R", b: "B", n: "N", p: "" };
+
+let activeGlyphs = GLYPHS_FILLED;
+let backgroundSkin = "forest";
+let pieceSkin = "classic";
 
 let board = [];       // 8x8 array; each cell is null or { color, type }
 let turn = "w";       // "w" or "b"
@@ -179,7 +225,7 @@ function render() {
       if (piece) {
         const glyph = document.createElement("span");
         glyph.className = "piece piece-" + piece.color + " on-" + squareTone;
-        glyph.textContent = GLYPHS[piece.color][piece.type];
+        glyph.textContent = activeGlyphs[piece.color][piece.type];
         glyph.style.animationDelay = ((r * 8 + c) * 0.07) + "s";
         if (landedMove && landedMove.toR === r && landedMove.toC === c) {
           glyph.classList.add("piece-landed");
@@ -266,20 +312,99 @@ resetEl.addEventListener("click", () => {
   statusEl.textContent = "White to move";
 });
 
-function applyTheme(theme) {
-  document.body.classList.remove("theme-green", "theme-purple");
-  document.body.classList.add(theme === "purple" ? "theme-purple" : "theme-green");
-  themeToggleEl.textContent = theme === "purple" ? "Green Theme" : "Purple Theme";
-  localStorage.setItem(THEME_KEY, theme);
+function applyBackgroundSkin(id) {
+  const skin = BACKGROUND_SKINS.find((s) => s.id === id) || BACKGROUND_SKINS[0];
+  backgroundSkin = skin.id;
+  document.body.classList.remove(...BACKGROUND_SKINS.map((s) => "bg-" + s.id));
+  document.body.classList.add("bg-" + skin.id);
+  localStorage.setItem(BG_SKIN_KEY, skin.id);
+  backgroundSkinsEl.querySelectorAll(".skin-option").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.skinId === skin.id);
+    btn.setAttribute("aria-checked", btn.dataset.skinId === skin.id ? "true" : "false");
+  });
 }
 
-themeToggleEl.addEventListener("click", () => {
-  const next = document.body.classList.contains("theme-purple") ? "green" : "purple";
-  applyTheme(next);
+function applyPieceSkin(id) {
+  const skin = PIECE_SKINS.find((s) => s.id === id) || PIECE_SKINS[0];
+  pieceSkin = skin.id;
+  activeGlyphs = skin.glyphSet === "outline" ? GLYPHS_OUTLINE : GLYPHS_FILLED;
+  document.body.classList.remove(...PIECE_SKINS.map((s) => "pieces-" + s.id));
+  document.body.classList.add("pieces-" + skin.id);
+  localStorage.setItem(PIECE_SKIN_KEY, skin.id);
+  pieceSkinsEl.querySelectorAll(".skin-option").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.skinId === skin.id);
+    btn.setAttribute("aria-checked", btn.dataset.skinId === skin.id ? "true" : "false");
+  });
+  render();
+}
+
+function buildSkinPicker() {
+  backgroundSkinsEl.innerHTML = BACKGROUND_SKINS.map((skin) => {
+    const previewStyle =
+      "background: linear-gradient(135deg, " + skin.light + " 50%, " + skin.dark + " 50%);";
+    return (
+      '<button type="button" class="skin-option" data-skin-id="' + skin.id + '" role="radio" aria-checked="false">' +
+        '<span class="skin-option-preview bg-preview" style="' + previewStyle + '"></span>' +
+        '<span class="skin-option-label">' + skin.label + "</span>" +
+      "</button>"
+    );
+  }).join("");
+
+  pieceSkinsEl.innerHTML = PIECE_SKINS.map((skin) => {
+    const [whiteColor, blackColor] = PIECE_PREVIEW_COLORS[skin.id];
+    return (
+      '<button type="button" class="skin-option" data-skin-id="' + skin.id + '" role="radio" aria-checked="false">' +
+        '<span class="skin-option-preview piece-preview">' +
+          '<span style="color:' + whiteColor + '">' + skin.previewW + "</span>" +
+          '<span style="color:' + blackColor + '">' + skin.previewB + "</span>" +
+        "</span>" +
+        '<span class="skin-option-label">' + skin.label + "</span>" +
+      "</button>"
+    );
+  }).join("");
+
+  backgroundSkinsEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".skin-option");
+    if (btn) applyBackgroundSkin(btn.dataset.skinId);
+  });
+
+  pieceSkinsEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".skin-option");
+    if (btn) applyPieceSkin(btn.dataset.skinId);
+  });
+}
+
+function openSkinPicker() {
+  skinPickerEl.hidden = false;
+  skinPickerBackdropEl.hidden = false;
+  skinPickerToggleEl.setAttribute("aria-expanded", "true");
+}
+
+function closeSkinPicker() {
+  skinPickerEl.hidden = true;
+  skinPickerBackdropEl.hidden = true;
+  skinPickerToggleEl.setAttribute("aria-expanded", "false");
+}
+
+function loadSavedSkins() {
+  const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+  const savedBg = localStorage.getItem(BG_SKIN_KEY);
+  const bgId = savedBg ||
+    (legacyTheme === "green" ? "forest" : legacyTheme === "purple" ? "royal" : "forest");
+  const pieceId = localStorage.getItem(PIECE_SKIN_KEY) || "classic";
+  applyBackgroundSkin(bgId);
+  applyPieceSkin(pieceId);
+}
+
+skinPickerToggleEl.addEventListener("click", openSkinPicker);
+skinPickerCloseEl.addEventListener("click", closeSkinPicker);
+skinPickerBackdropEl.addEventListener("click", closeSkinPicker);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !skinPickerEl.hidden) closeSkinPicker();
 });
 
-applyTheme(localStorage.getItem(THEME_KEY) === "green" ? "green" : "purple");
+buildSkinPicker();
 setupBoard();
-render();
+loadSavedSkins();
 renderMoveHistory();
 statusEl.textContent = "White to move";
