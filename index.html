@@ -35,10 +35,16 @@
     <p id="status" class="status">White to move</p>
     <div class="game-layout">
       <div id="board" class="board" aria-label="Chess board"></div>
-      <section class="move-legend" aria-label="Move history">
-        <h2 class="move-legend-title">Moves</h2>
-        <div id="move-list" class="move-list">
-          <p class="move-empty">No moves yet</p>
+      <section class="side-panel">
+        <div class="scoreboard" aria-label="Captured pieces and score">
+          <h2 class="scoreboard-title">Score</h2>
+          <div id="score" class="score"></div>
+        </div>
+        <div class="move-legend" aria-label="Move history">
+          <h2 class="move-legend-title">Moves</h2>
+          <div id="move-list" class="move-list">
+            <p class="move-empty">No moves yet</p>
+          </div>
         </div>
       </section>
     </div>

@@ -51,12 +51,16 @@ const skinPickerBackdropEl = document.getElementById("skin-picker-backdrop");
 const backgroundSkinsEl = document.getElementById("background-skins");
 const pieceSkinsEl = document.getElementById("piece-skins");
 const moveListEl = document.getElementById("move-list");
+const scoreEl = document.getElementById("score");
 
 const BG_SKIN_KEY = "chess-bg-skin";
 const PIECE_SKIN_KEY = "chess-piece-skin";
 const LEGACY_THEME_KEY = "chess-theme";
 
 const PIECE_NAMES = { k: "K", q: "Q", r: "R", b: "B", n: "N", p: "" };
+
+// Standard material values used for the score table.
+const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
 let activeGlyphs = GLYPHS_FILLED;
 let backgroundSkin = "forest";
@@ -67,6 +71,7 @@ let turn = "w";       // "w" or "b"
 let selected = null;  // { row, col } of the currently selected piece
 let legalMoves = [];  // list of { row, col } the selected piece may move to
 let moveHistory = []; // list of { color, notation }
+let capturedPieces = { w: [], b: [] }; // piece types each color has captured
 let lastMove = null;  // { toR, toC } for landing animation
 let gameOver = false;
 
@@ -83,6 +88,7 @@ function setupBoard() {
   selected = null;
   legalMoves = [];
   moveHistory = [];
+  capturedPieces = { w: [], b: [] };
   gameOver = false;
 }
 
@@ -118,6 +124,47 @@ function renderMoveHistory() {
   }
   moveListEl.innerHTML = rows.join("");
   moveListEl.scrollTop = moveListEl.scrollHeight;
+}
+
+// Total material value of a list of captured piece types.
+function materialValue(types) {
+  return types.reduce((sum, t) => sum + (PIECE_VALUES[t] || 0), 0);
+}
+
+// Render the score table: captured pieces and material points per side.
+function renderScore() {
+  const order = { q: 0, r: 1, b: 2, n: 3, p: 4, k: 5 };
+  const scoreW = materialValue(capturedPieces.w);
+  const scoreB = materialValue(capturedPieces.b);
+  const lead = scoreW - scoreB;
+
+  const rowFor = (color) => {
+    const label = color === "w" ? "White" : "Black";
+    const taken = capturedPieces[color]
+      .slice()
+      .sort((a, b) => order[a] - order[b]);
+    // Captured pieces belong to the opponent, so show them in that color.
+    const foe = color === "w" ? "b" : "w";
+    const glyphs = taken.length
+      ? taken
+          .map((t) => '<span class="score-piece piece-' + foe + '">' + activeGlyphs[foe][t] + "</span>")
+          .join("")
+      : '<span class="score-none">—</span>';
+    const points = materialValue(capturedPieces[color]);
+    const advantage = color === "w" ? lead : -lead;
+    const advText = advantage > 0 ? "+" + advantage : "";
+    return (
+      '<div class="score-row">' +
+        '<span class="score-side">' + label + "</span>" +
+        '<span class="score-captured">' + glyphs + "</span>" +
+        '<span class="score-points">' + points +
+          (advText ? ' <span class="score-lead">' + advText + "</span>" : "") +
+        "</span>" +
+      "</div>"
+    );
+  };
+
+  scoreEl.innerHTML = rowFor("w") + rowFor("b");
 }
 
 const inBounds = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
@@ -282,6 +329,11 @@ function movePiece(fromR, fromC, toR, toC) {
   board[toR][toC] = piece;
   board[fromR][fromC] = null;
 
+  // Record the captured piece under the color that captured it.
+  if (captured) {
+    capturedPieces[movingColor].push(captured.type);
+  }
+
   if (promoted) {
     piece.type = "q";
   }
@@ -291,6 +343,7 @@ function movePiece(fromR, fromC, toR, toC) {
   legalMoves = [];
 
   renderMoveHistory();
+  renderScore();
 
   // Capturing a king ends the game.
   if (captured && captured.type === "k") {
@@ -309,6 +362,7 @@ resetEl.addEventListener("click", () => {
   setupBoard();
   render();
   renderMoveHistory();
+  renderScore();
   statusEl.textContent = "White to move";
 });
 
@@ -407,4 +461,5 @@ buildSkinPicker();
 setupBoard();
 loadSavedSkins();
 renderMoveHistory();
+renderScore();
 statusEl.textContent = "White to move";
