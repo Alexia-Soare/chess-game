@@ -36,6 +36,16 @@
     <div class="game-layout">
       <div id="board" class="board" aria-label="Chess board"></div>
       <section class="side-panel">
+        <div id="clocks" class="clocks" aria-label="Clocks" hidden>
+          <div id="clock-b" class="clock" data-color="b">
+            <span class="clock-side">Black</span>
+            <span class="clock-time">--:--</span>
+          </div>
+          <div id="clock-w" class="clock" data-color="w">
+            <span class="clock-side">White</span>
+            <span class="clock-time">--:--</span>
+          </div>
+        </div>
         <div class="scoreboard" aria-label="Captured pieces and score">
           <h2 class="scoreboard-title">Score</h2>
           <div id="score" class="score"></div>
@@ -49,6 +59,8 @@
       </section>
     </div>
     <div class="actions">
+      <label class="mode-select-label" for="mode-select">Mode</label>
+      <select id="mode-select" class="mode-select" aria-label="Time control"></select>
       <button id="reset" type="button" class="btn reset">New Game</button>
     </div>
   </main>
