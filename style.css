@@ -724,6 +724,18 @@ body.pieces-gold .piece-w {
   50% { box-shadow: 0 0 0 3px rgba(255, 138, 92, 0.5); }
 }
 
+/* Checkers pieces: fixed disc colors, independent of the chess piece skins.
+   The body.game-checkers prefix outranks the `.pieces-<skin> .piece-*` rules. */
+body.game-checkers .piece-w {
+  color: #f6f6f0;
+  -webkit-text-stroke: 0;
+}
+
+body.game-checkers .piece-b {
+  color: #2b2b2b;
+  -webkit-text-stroke: 0;
+}
+
 /* Mode (time control) selector */
 .mode-select-label {
   align-self: center;

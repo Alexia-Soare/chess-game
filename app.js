@@ -5,14 +5,16 @@
 // without touching the rules.
 
 import { chess } from "./games/chess.js";
+import { checkers } from "./games/checkers.js";
 import { initSkins, getPieceSkin } from "./ui/skins.js";
 import { renderMoveHistory } from "./ui/panels.js";
 import { TIME_CONTROLS, initClock, setControl, reset as resetClock, onTurnEnd, halt as haltClock } from "./clock.js";
 
-const GAMES = { chess };
+const GAMES = { chess, checkers };
 let activeGame = chess;
 
 const MODE_KEY = "chess-mode";
+const GAME_KEY = "active-game";
 
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
@@ -20,6 +22,8 @@ const resetEl = document.getElementById("reset");
 const moveListEl = document.getElementById("move-list");
 const scoreEl = document.getElementById("score");
 const modeSelectEl = document.getElementById("mode-select");
+const gameSelectEl = document.getElementById("game-select");
+const gameTitleEl = document.getElementById("game-title");
 
 let board = [];       // 8x8 array; each cell is null or { color, type }
 let turn = "w";       // "w" or "b"
@@ -29,6 +33,8 @@ let moveHistory = []; // list of { color, notation }
 let capturedPieces = { w: [], b: [] }; // piece types each color has captured
 let lastMove = null;  // { toR, toC } for landing animation
 let gameOver = false;
+let pendingParts = null; // notation segments buffered across a multi-move turn
+let locked = false;      // selection locked to a piece mid-continuation (multi-jump)
 
 // Appearance context passed to game rendering hooks.
 const appearanceCtx = () => ({ pieceSkin: getPieceSkin() });
@@ -43,6 +49,22 @@ function setupBoard() {
   capturedPieces = { w: [], b: [] };
   lastMove = null;
   gameOver = false;
+  pendingParts = null;
+  locked = false;
+}
+
+// Merge the segments of a turn into one notation string. A single move passes
+// through unchanged; a checkers multi-jump like ["22x15", "15x8"] becomes
+// "22x15x8".
+function combineNotation(parts) {
+  if (parts.length === 1) return parts[0];
+  const squares = [];
+  for (const part of parts) {
+    for (const s of part.split("x")) {
+      if (squares[squares.length - 1] !== s) squares.push(s);
+    }
+  }
+  return squares.join("x");
 }
 
 const squareName = (r, c) => "abcdefgh"[c] + (8 - r);
@@ -107,6 +129,10 @@ function onSquareClick(r, c) {
     return;
   }
 
+  // While a multi-move turn is locked to one piece (checkers multi-jump), only
+  // completing the forced move is allowed — no reselecting another piece.
+  if (locked) return;
+
   // Selecting one of your own pieces.
   const moves = activeGame.legalMoves(board, r, c, { turn });
   if (piece && piece.color === turn && moves.length) {
@@ -124,7 +150,9 @@ function movePiece(from, to) {
   const mover = turn;
   const result = activeGame.applyMove(board, from, to, { turn });
 
-  moveHistory.push({ color: mover, notation: result.notation });
+  // Buffer notation so a multi-move turn is recorded as a single history entry.
+  if (!pendingParts) pendingParts = [];
+  pendingParts.push(result.notation);
   if (result.captured) {
     capturedPieces[mover].push(result.captured.type);
   }
@@ -132,6 +160,23 @@ function movePiece(from, to) {
   lastMove = { toR: to.row, toC: to.col };
   selected = null;
   legalMoves = [];
+
+  // A continuation keeps the same player on move (e.g. checkers multi-jump); the
+  // clock keeps running and the selection is locked to the continuing piece.
+  if (result.continuation) {
+    selected = result.continuation;
+    legalMoves = activeGame.legalMoves(board, result.continuation.row, result.continuation.col, { turn });
+    locked = true;
+    activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
+    render();
+    statusEl.textContent = activeGame.colors[turn] + " must continue jumping";
+    return;
+  }
+
+  // Turn ends: finalize the buffered history entry.
+  moveHistory.push({ color: mover, notation: combineNotation(pendingParts) });
+  pendingParts = null;
+  locked = false;
 
   renderMoveHistory(moveListEl, moveHistory);
   activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
@@ -146,16 +191,6 @@ function movePiece(from, to) {
     statusEl.textContent = terminal.winner
       ? activeGame.colors[terminal.winner] + " wins!"
       : "Draw";
-    return;
-  }
-
-  // A continuation keeps the same player on move (e.g. checkers multi-jump); the
-  // clock keeps running for the mover since their turn has not ended.
-  if (result.continuation) {
-    selected = result.continuation;
-    legalMoves = activeGame.legalMoves(board, result.continuation.row, result.continuation.col, { turn });
-    render();
-    statusEl.textContent = activeGame.colors[turn] + " must continue jumping";
     return;
   }
 
@@ -175,6 +210,9 @@ function onFlag(flagged) {
 }
 
 function newGame() {
+  gameTitleEl.textContent = activeGame.label;
+  document.body.classList.toggle("game-checkers", activeGame.id === "checkers");
+  document.body.classList.toggle("game-chess", activeGame.id === "chess");
   setControl(modeSelectEl.value);
   resetClock();
   setupBoard();
@@ -182,6 +220,22 @@ function newGame() {
   renderMoveHistory(moveListEl, moveHistory);
   activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
   statusEl.textContent = activeGame.colors[turn] + " to move";
+}
+
+function initGameSelector() {
+  gameSelectEl.innerHTML = Object.values(GAMES)
+    .map((g) => '<option value="' + g.id + '">' + g.label + "</option>")
+    .join("");
+  const saved = localStorage.getItem(GAME_KEY);
+  const chosen = GAMES[saved] ? saved : "chess";
+  gameSelectEl.value = chosen;
+  activeGame = GAMES[chosen];
+  // Switching games starts a fresh game of the chosen kind.
+  gameSelectEl.addEventListener("change", () => {
+    activeGame = GAMES[gameSelectEl.value] || chess;
+    localStorage.setItem(GAME_KEY, activeGame.id);
+    newGame();
+  });
 }
 
 function initModeSelector() {
@@ -201,5 +255,6 @@ resetEl.addEventListener("click", newGame);
 
 initSkins(render);
 initClock({ onFlag });
+initGameSelector();
 initModeSelector();
 newGame();
