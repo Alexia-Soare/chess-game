@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chess</title>
+  <title>Chess &amp; Checkers</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,11 +31,21 @@
   <div id="skin-picker-backdrop" class="skin-picker-backdrop" hidden></div>
 
   <main class="app">
-    <h1>Chess</h1>
+    <h1 id="game-title">Chess</h1>
     <p id="status" class="status">White to move</p>
     <div class="game-layout">
       <div id="board" class="board" aria-label="Chess board"></div>
       <section class="side-panel">
+        <div id="clocks" class="clocks" aria-label="Clocks" hidden>
+          <div id="clock-b" class="clock" data-color="b">
+            <span class="clock-side">Black</span>
+            <span class="clock-time">--:--</span>
+          </div>
+          <div id="clock-w" class="clock" data-color="w">
+            <span class="clock-side">White</span>
+            <span class="clock-time">--:--</span>
+          </div>
+        </div>
         <div class="scoreboard" aria-label="Captured pieces and score">
           <h2 class="scoreboard-title">Score</h2>
           <div id="score" class="score"></div>
@@ -49,9 +59,13 @@
       </section>
     </div>
     <div class="actions">
+      <label class="mode-select-label" for="game-select">Game</label>
+      <select id="game-select" class="mode-select" aria-label="Game"></select>
+      <label class="mode-select-label" for="mode-select">Mode</label>
+      <select id="mode-select" class="mode-select" aria-label="Time control"></select>
       <button id="reset" type="button" class="btn reset">New Game</button>
     </div>
   </main>
-  <script src="chess.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
