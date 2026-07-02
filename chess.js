@@ -1,6 +1,6 @@
-// Chess piece glyphs by color and type.
+// Filled glyphs (U+265A–265F) for both sides; white outline glyphs render hollow in most fonts.
 const GLYPHS = {
-  w: { p: "♙", n: "♘", b: "♗", r: "♖", q: "♕", k: "♔" },
+  w: { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" },
   b: { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" },
 };
 
@@ -10,11 +10,18 @@ const BACK_RANK = ["r", "n", "b", "q", "k", "b", "n", "r"];
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const resetEl = document.getElementById("reset");
+const themeToggleEl = document.getElementById("theme-toggle");
+const moveListEl = document.getElementById("move-list");
+const THEME_KEY = "chess-theme";
+
+const PIECE_NAMES = { k: "K", q: "Q", r: "R", b: "B", n: "N", p: "" };
 
 let board = [];       // 8x8 array; each cell is null or { color, type }
 let turn = "w";       // "w" or "b"
 let selected = null;  // { row, col } of the currently selected piece
 let legalMoves = [];  // list of { row, col } the selected piece may move to
+let moveHistory = []; // list of { color, notation }
+let lastMove = null;  // { toR, toC } for landing animation
 let gameOver = false;
 
 // Build the initial position.
@@ -29,7 +36,42 @@ function setupBoard() {
   turn = "w";
   selected = null;
   legalMoves = [];
+  moveHistory = [];
   gameOver = false;
+}
+
+const squareName = (r, c) => "abcdefgh"[c] + (8 - r);
+
+function formatMove(fromR, fromC, toR, toC, piece, captured, promoted) {
+  const to = squareName(toR, toC);
+  if (piece.type === "p") {
+    const move = captured ? squareName(fromR, fromC)[0] + "x" + to : to;
+    return promoted ? move + "=Q" : move;
+  }
+  return PIECE_NAMES[piece.type] + (captured ? "x" : "") + to;
+}
+
+function renderMoveHistory() {
+  if (moveHistory.length === 0) {
+    moveListEl.innerHTML = '<p class="move-empty">No moves yet</p>';
+    return;
+  }
+
+  const rows = [];
+  for (let i = 0; i < moveHistory.length; i += 2) {
+    const moveNum = Math.floor(i / 2) + 1;
+    const white = moveHistory[i].notation;
+    const black = moveHistory[i + 1]?.notation || "";
+    rows.push(
+      '<div class="move-row">' +
+        '<span class="move-num">' + moveNum + ".</span>" +
+        '<span class="move-white">' + white + "</span>" +
+        '<span class="move-black">' + black + "</span>" +
+      "</div>"
+    );
+  }
+  moveListEl.innerHTML = rows.join("");
+  moveListEl.scrollTop = moveListEl.scrollHeight;
 }
 
 const inBounds = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
@@ -111,6 +153,8 @@ function movesFor(r, c) {
 
 // Render the board state into the DOM.
 function render() {
+  const landedMove = lastMove;
+  lastMove = null;
   boardEl.innerHTML = "";
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
@@ -118,8 +162,30 @@ function render() {
       sq.className = "square " + ((r + c) % 2 === 0 ? "light" : "dark");
       sq.dataset.row = r;
       sq.dataset.col = c;
+      sq.setAttribute("aria-label", squareName(r, c));
+      const squareTone = (r + c) % 2 === 0 ? "light" : "dark";
+
+      const rankLabel = document.createElement("span");
+      rankLabel.className = "coord coord-rank";
+      rankLabel.textContent = 8 - r;
+      sq.appendChild(rankLabel);
+
+      const fileLabel = document.createElement("span");
+      fileLabel.className = "coord coord-file";
+      fileLabel.textContent = "abcdefgh"[c];
+      sq.appendChild(fileLabel);
+
       const piece = board[r][c];
-      if (piece) sq.textContent = GLYPHS[piece.color][piece.type];
+      if (piece) {
+        const glyph = document.createElement("span");
+        glyph.className = "piece piece-" + piece.color + " on-" + squareTone;
+        glyph.textContent = GLYPHS[piece.color][piece.type];
+        glyph.style.animationDelay = ((r * 8 + c) * 0.07) + "s";
+        if (landedMove && landedMove.toR === r && landedMove.toC === c) {
+          glyph.classList.add("piece-landed");
+        }
+        sq.appendChild(glyph);
+      }
       if (selected && selected.row === r && selected.col === c) {
         sq.classList.add("selected");
       }
@@ -159,22 +225,32 @@ function onSquareClick(r, c) {
 function movePiece(fromR, fromC, toR, toC) {
   const captured = board[toR][toC];
   const piece = board[fromR][fromC];
+  const promoted = piece.type === "p" && (toR === 0 || toR === 7);
+  const movingColor = turn;
+
+  moveHistory.push({
+    color: movingColor,
+    notation: formatMove(fromR, fromC, toR, toC, piece, captured, promoted),
+  });
+
   board[toR][toC] = piece;
   board[fromR][fromC] = null;
 
-  // Auto-promote pawns reaching the far rank.
-  if (piece.type === "p" && (toR === 0 || toR === 7)) {
+  if (promoted) {
     piece.type = "q";
   }
 
+  lastMove = { toR, toC };
   selected = null;
   legalMoves = [];
+
+  renderMoveHistory();
 
   // Capturing a king ends the game.
   if (captured && captured.type === "k") {
     gameOver = true;
     render();
-    statusEl.textContent = (turn === "w" ? "White" : "Black") + " wins!";
+    statusEl.textContent = (movingColor === "w" ? "White" : "Black") + " wins!";
     return;
   }
 
@@ -186,9 +262,24 @@ function movePiece(fromR, fromC, toR, toC) {
 resetEl.addEventListener("click", () => {
   setupBoard();
   render();
+  renderMoveHistory();
   statusEl.textContent = "White to move";
 });
 
+function applyTheme(theme) {
+  document.body.classList.remove("theme-green", "theme-purple");
+  document.body.classList.add(theme === "purple" ? "theme-purple" : "theme-green");
+  themeToggleEl.textContent = theme === "purple" ? "Green Theme" : "Purple Theme";
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+themeToggleEl.addEventListener("click", () => {
+  const next = document.body.classList.contains("theme-purple") ? "green" : "purple";
+  applyTheme(next);
+});
+
+applyTheme(localStorage.getItem(THEME_KEY) === "green" ? "green" : "purple");
 setupBoard();
 render();
+renderMoveHistory();
 statusEl.textContent = "White to move";

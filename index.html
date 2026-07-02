@@ -7,11 +7,22 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <button id="theme-toggle" type="button" class="btn theme-toggle">Purple Theme</button>
   <main class="app">
     <h1>Chess</h1>
     <p id="status" class="status">White to move</p>
-    <div id="board" class="board" aria-label="Chess board"></div>
-    <button id="reset" class="reset">New Game</button>
+    <div class="game-layout">
+      <div id="board" class="board" aria-label="Chess board"></div>
+      <section class="move-legend" aria-label="Move history">
+        <h2 class="move-legend-title">Moves</h2>
+        <div id="move-list" class="move-list">
+          <p class="move-empty">No moves yet</p>
+        </div>
+      </section>
+    </div>
+    <div class="actions">
+      <button id="reset" type="button" class="btn reset">New Game</button>
+    </div>
   </main>
   <script src="chess.js"></script>
 </body>
