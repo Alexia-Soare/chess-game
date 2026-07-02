@@ -45,6 +45,7 @@ const squareName = (r, c) => "abcdefgh"[c] + (8 - r);
 
 // Render the board state into the DOM.
 function render() {
+  if (!board.length) return; // nothing to draw until the first game is set up
   const landedMove = lastMove;
   lastMove = null;
   boardEl.innerHTML = "";
