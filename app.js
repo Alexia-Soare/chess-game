@@ -5,14 +5,16 @@
 // without touching the rules.
 
 import { chess } from "./games/chess.js";
+import { checkers } from "./games/checkers.js";
 import { initSkins, getPieceSkin } from "./ui/skins.js";
 import { renderMoveHistory } from "./ui/panels.js";
 import { TIME_CONTROLS, initClock, setControl, reset as resetClock, onTurnEnd, halt as haltClock } from "./clock.js";
 
-const GAMES = { chess };
+const GAMES = { chess, checkers };
 let activeGame = chess;
 
 const MODE_KEY = "chess-mode";
+const GAME_KEY = "active-game";
 
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
@@ -20,6 +22,8 @@ const resetEl = document.getElementById("reset");
 const moveListEl = document.getElementById("move-list");
 const scoreEl = document.getElementById("score");
 const modeSelectEl = document.getElementById("mode-select");
+const gameSelectEl = document.getElementById("game-select");
+const gameTitleEl = document.getElementById("game-title");
 
 let board = [];       // 8x8 array; each cell is null or { color, type }
 let turn = "w";       // "w" or "b"
@@ -206,6 +210,9 @@ function onFlag(flagged) {
 }
 
 function newGame() {
+  gameTitleEl.textContent = activeGame.label;
+  document.body.classList.toggle("game-checkers", activeGame.id === "checkers");
+  document.body.classList.toggle("game-chess", activeGame.id === "chess");
   setControl(modeSelectEl.value);
   resetClock();
   setupBoard();
@@ -213,6 +220,22 @@ function newGame() {
   renderMoveHistory(moveListEl, moveHistory);
   activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
   statusEl.textContent = activeGame.colors[turn] + " to move";
+}
+
+function initGameSelector() {
+  gameSelectEl.innerHTML = Object.values(GAMES)
+    .map((g) => '<option value="' + g.id + '">' + g.label + "</option>")
+    .join("");
+  const saved = localStorage.getItem(GAME_KEY);
+  const chosen = GAMES[saved] ? saved : "chess";
+  gameSelectEl.value = chosen;
+  activeGame = GAMES[chosen];
+  // Switching games starts a fresh game of the chosen kind.
+  gameSelectEl.addEventListener("change", () => {
+    activeGame = GAMES[gameSelectEl.value] || chess;
+    localStorage.setItem(GAME_KEY, activeGame.id);
+    newGame();
+  });
 }
 
 function initModeSelector() {
@@ -232,5 +255,6 @@ resetEl.addEventListener("click", newGame);
 
 initSkins(render);
 initClock({ onFlag });
+initGameSelector();
 initModeSelector();
 newGame();
