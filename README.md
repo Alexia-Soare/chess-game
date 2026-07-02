@@ -14,7 +14,8 @@ A lightweight browser chess game built with plain HTML, CSS, and JavaScript. No 
 
 ## Getting Started
 
-Open `index.html` in a browser, or serve the folder locally:
+The app is built with ES modules, which browsers only load over HTTP (not from a
+`file://` path), so serve the folder locally:
 
 ```bash
 python3 -m http.server 8765
@@ -34,9 +35,16 @@ Then visit [http://localhost:8765](http://localhost:8765).
 
 ```
 chess-game/
-├── index.html   # Page markup
-├── style.css    # Themes, board styling, animations
-├── chess.js     # Game logic and rendering
+├── index.html      # Page markup
+├── style.css       # Themes, board styling, animations
+├── app.js          # Game-agnostic shell: board, input, rendering, panels
+├── games/
+│   ├── interface.md # The game module contract
+│   └── chess.js     # Chess rules and rendering hooks
+├── ui/
+│   ├── skins.js     # Appearance customization (background + piece skins)
+│   └── panels.js    # Move-history panel
+├── docs/           # Architecture plan, ADRs, glossary
 └── README.md
 ```
 
