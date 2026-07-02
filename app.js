@@ -7,15 +7,19 @@
 import { chess } from "./games/chess.js";
 import { initSkins, getPieceSkin } from "./ui/skins.js";
 import { renderMoveHistory } from "./ui/panels.js";
+import { TIME_CONTROLS, initClock, setControl, reset as resetClock, onTurnEnd, halt as haltClock } from "./clock.js";
 
 const GAMES = { chess };
 let activeGame = chess;
+
+const MODE_KEY = "chess-mode";
 
 const boardEl = document.getElementById("board");
 const statusEl = document.getElementById("status");
 const resetEl = document.getElementById("reset");
 const moveListEl = document.getElementById("move-list");
 const scoreEl = document.getElementById("score");
+const modeSelectEl = document.getElementById("mode-select");
 
 let board = [];       // 8x8 array; each cell is null or { color, type }
 let turn = "w";       // "w" or "b"
@@ -137,6 +141,7 @@ function movePiece(from, to) {
   const terminal = activeGame.isTerminal(board, { turn: next });
   if (terminal && terminal.over) {
     gameOver = true;
+    haltClock();
     render();
     statusEl.textContent = terminal.winner
       ? activeGame.colors[terminal.winner] + " wins!"
@@ -144,7 +149,8 @@ function movePiece(from, to) {
     return;
   }
 
-  // A continuation keeps the same player on move (e.g. checkers multi-jump).
+  // A continuation keeps the same player on move (e.g. checkers multi-jump); the
+  // clock keeps running for the mover since their turn has not ended.
   if (result.continuation) {
     selected = result.continuation;
     legalMoves = activeGame.legalMoves(board, result.continuation.row, result.continuation.col, { turn });
@@ -154,11 +160,23 @@ function movePiece(from, to) {
   }
 
   turn = next;
+  onTurnEnd(mover, next);
   render();
   statusEl.textContent = activeGame.colors[turn] + " to move";
 }
 
+// A player's clock ran out: they lose on time.
+function onFlag(flagged) {
+  if (gameOver) return;
+  gameOver = true;
+  const winner = flagged === "w" ? "b" : "w";
+  render();
+  statusEl.textContent = activeGame.colors[winner] + " wins on time!";
+}
+
 function newGame() {
+  setControl(modeSelectEl.value);
+  resetClock();
   setupBoard();
   render();
   renderMoveHistory(moveListEl, moveHistory);
@@ -166,7 +184,22 @@ function newGame() {
   statusEl.textContent = activeGame.colors[turn] + " to move";
 }
 
+function initModeSelector() {
+  modeSelectEl.innerHTML = TIME_CONTROLS.map(
+    (t) => '<option value="' + t.id + '">' + t.label + "</option>"
+  ).join("");
+  const saved = localStorage.getItem(MODE_KEY);
+  modeSelectEl.value = TIME_CONTROLS.some((t) => t.id === saved) ? saved : "casual";
+  // Changing the mode starts a fresh game under that time control.
+  modeSelectEl.addEventListener("change", () => {
+    localStorage.setItem(MODE_KEY, modeSelectEl.value);
+    newGame();
+  });
+}
+
 resetEl.addEventListener("click", newGame);
 
 initSkins(render);
+initClock({ onFlag });
+initModeSelector();
 newGame();
