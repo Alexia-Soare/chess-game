@@ -29,6 +29,8 @@ let moveHistory = []; // list of { color, notation }
 let capturedPieces = { w: [], b: [] }; // piece types each color has captured
 let lastMove = null;  // { toR, toC } for landing animation
 let gameOver = false;
+let pendingParts = null; // notation segments buffered across a multi-move turn
+let locked = false;      // selection locked to a piece mid-continuation (multi-jump)
 
 // Appearance context passed to game rendering hooks.
 const appearanceCtx = () => ({ pieceSkin: getPieceSkin() });
@@ -43,6 +45,22 @@ function setupBoard() {
   capturedPieces = { w: [], b: [] };
   lastMove = null;
   gameOver = false;
+  pendingParts = null;
+  locked = false;
+}
+
+// Merge the segments of a turn into one notation string. A single move passes
+// through unchanged; a checkers multi-jump like ["22x15", "15x8"] becomes
+// "22x15x8".
+function combineNotation(parts) {
+  if (parts.length === 1) return parts[0];
+  const squares = [];
+  for (const part of parts) {
+    for (const s of part.split("x")) {
+      if (squares[squares.length - 1] !== s) squares.push(s);
+    }
+  }
+  return squares.join("x");
 }
 
 const squareName = (r, c) => "abcdefgh"[c] + (8 - r);
@@ -107,6 +125,10 @@ function onSquareClick(r, c) {
     return;
   }
 
+  // While a multi-move turn is locked to one piece (checkers multi-jump), only
+  // completing the forced move is allowed — no reselecting another piece.
+  if (locked) return;
+
   // Selecting one of your own pieces.
   const moves = activeGame.legalMoves(board, r, c, { turn });
   if (piece && piece.color === turn && moves.length) {
@@ -124,7 +146,9 @@ function movePiece(from, to) {
   const mover = turn;
   const result = activeGame.applyMove(board, from, to, { turn });
 
-  moveHistory.push({ color: mover, notation: result.notation });
+  // Buffer notation so a multi-move turn is recorded as a single history entry.
+  if (!pendingParts) pendingParts = [];
+  pendingParts.push(result.notation);
   if (result.captured) {
     capturedPieces[mover].push(result.captured.type);
   }
@@ -132,6 +156,23 @@ function movePiece(from, to) {
   lastMove = { toR: to.row, toC: to.col };
   selected = null;
   legalMoves = [];
+
+  // A continuation keeps the same player on move (e.g. checkers multi-jump); the
+  // clock keeps running and the selection is locked to the continuing piece.
+  if (result.continuation) {
+    selected = result.continuation;
+    legalMoves = activeGame.legalMoves(board, result.continuation.row, result.continuation.col, { turn });
+    locked = true;
+    activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
+    render();
+    statusEl.textContent = activeGame.colors[turn] + " must continue jumping";
+    return;
+  }
+
+  // Turn ends: finalize the buffered history entry.
+  moveHistory.push({ color: mover, notation: combineNotation(pendingParts) });
+  pendingParts = null;
+  locked = false;
 
   renderMoveHistory(moveListEl, moveHistory);
   activeGame.renderScore(scoreEl, board, capturedPieces, appearanceCtx());
@@ -146,16 +187,6 @@ function movePiece(from, to) {
     statusEl.textContent = terminal.winner
       ? activeGame.colors[terminal.winner] + " wins!"
       : "Draw";
-    return;
-  }
-
-  // A continuation keeps the same player on move (e.g. checkers multi-jump); the
-  // clock keeps running for the mover since their turn has not ended.
-  if (result.continuation) {
-    selected = result.continuation;
-    legalMoves = activeGame.legalMoves(board, result.continuation.row, result.continuation.col, { turn });
-    render();
-    statusEl.textContent = activeGame.colors[turn] + " must continue jumping";
     return;
   }
 
